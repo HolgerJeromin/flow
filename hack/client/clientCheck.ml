@@ -132,6 +132,9 @@ let main args =
     | MODE_DUMP_AI_INFO files ->
       ClientAiInfo.go conn files expand_path;
       Exit_status.Ok
+    | MODE_FIND_DEPENDENT_FILES files ->
+      ClientFindDependentFiles.go conn files expand_path;
+      Exit_status.Ok
     | MODE_REFACTOR (ref_mode, before, after) ->
       ClientRefactor.go conn args ref_mode before after;
       Exit_status.Ok
@@ -145,6 +148,13 @@ let main args =
         | _ -> ""
       in
       print_endline result;
+      Exit_status.Ok
+    | MODE_GET_DEFINITION arg ->
+      let line, char = parse_position_string arg in
+      let content = Sys_utils.read_stdin_to_string () in
+      let result =
+        Cmd.rpc conn @@ Rpc.IDENTIFY_FUNCTION (content, line, char) in
+      ClientGetDefinition.go result args.output_json;
       Exit_status.Ok
     | MODE_TYPE_AT_POS arg ->
       let tpos = Str.split (Str.regexp ":") arg in

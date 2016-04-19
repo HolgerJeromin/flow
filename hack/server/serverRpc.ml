@@ -22,6 +22,7 @@ type _ t =
       (string IdentifySymbolService.find_symbol_result) option t
   | OUTLINE : string -> (Pos.absolute * string * string) list t
   | METHOD_JUMP : (string * bool) -> MethodJumps.result list t
+  | FIND_DEPENDENT_FILES: string list -> string list t
   | FIND_REFS : FindRefsService.action -> FindRefsService.result t
   | REFACTOR : ServerRefactor.action -> ServerRefactor.patch list t
   | DUMP_SYMBOL_INFO : string list -> SymbolInfoService.result t
@@ -51,12 +52,15 @@ let handle : type a. genv -> env -> a t -> a =
     | AUTOCOMPLETE content ->
         ServerAutoComplete.auto_complete env.tcopt env.files_info content
     | IDENTIFY_FUNCTION (content, line, char) ->
-        ServerIdentifyFunction.go_absolute content line char
+        ServerIdentifyFunction.go_absolute content line char env.tcopt
     | OUTLINE content ->
         FileOutline.outline content
     | METHOD_JUMP (class_, find_children) ->
       MethodJumps.get_inheritance env.tcopt class_ ~find_children
         env.files_info genv.workers
+    | FIND_DEPENDENT_FILES file_list ->
+        Ai.ServerFindDepFiles.go genv.workers file_list
+          (ServerArgs.ai_mode genv.options)
     | FIND_REFS find_refs_action ->
         if ServerArgs.ai_mode genv.options = None then
           ServerFindRefs.go find_refs_action genv env
@@ -70,7 +74,7 @@ let handle : type a. genv -> env -> a t -> a =
           file_list (ServerArgs.ai_mode genv.options) env.tcopt
     | ARGUMENT_INFO (contents, line, col) ->
         ServerArgumentInfo.go contents line col
-    | SEARCH (query, type_) -> ServerSearch.go query type_
+    | SEARCH (query, type_) -> ServerSearch.go genv.workers query type_
     | COVERAGE_COUNTS path -> ServerCoverageMetric.go path genv env
     | LINT fnl -> ServerLint.go genv env fnl
     | LINT_ALL code -> ServerLint.lint_all genv env code
@@ -92,6 +96,7 @@ let to_string : type a. a t -> _ = function
   | IDENTIFY_FUNCTION _ -> "IDENTIFY_FUNCTION"
   | OUTLINE _ -> "OUTLINE"
   | METHOD_JUMP _ -> "METHOD_JUMP"
+  | FIND_DEPENDENT_FILES _ -> "FIND_DEPENDENT_FILES"
   | FIND_REFS _ -> "FIND_REFS"
   | REFACTOR _ -> "REFACTOR"
   | DUMP_SYMBOL_INFO _ -> "DUMP_SYMBOL_INFO"

@@ -6,37 +6,37 @@
  * LICENSE file in the "hack" directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
  *
- *)
+*)
 
 open Hh_json
 
-let get_result_type res =
-  match res.IdentifySymbolService.type_ with
-  | IdentifySymbolService.Class -> "class"
-  | IdentifySymbolService.Method _ -> "method"
-  | IdentifySymbolService.Function -> "function"
-  | IdentifySymbolService.LocalVar -> "local"
-
 let to_json = function
   | Some res ->
+    let definition_pos = match res.IdentifySymbolService.name_pos with
+      | Some pos -> Pos.json pos
+      | None -> JSON_Null
+    in
     JSON_Object [
       "name",           JSON_String res.IdentifySymbolService.name;
-      "result_type",    JSON_String (get_result_type res);
+      "result_type",    JSON_String (ClientGetMethodName.get_result_type res);
       "pos",            Pos.json (res.IdentifySymbolService.pos);
-      "internal_error", JSON_Bool false;
+      "definition_pos", definition_pos;
     ]
-  | None -> JSON_Object [ "internal_error", JSON_Bool false ]
+  | None -> JSON_Null
 
 let print_json res =
   print_endline (Hh_json.json_to_string (to_json res))
 
 let print_readable = function
   | Some res ->
-    let line, start, end_ = Pos.info_pos res.IdentifySymbolService.pos in
-    Printf.printf "Name: %s, type: %s, position: line %d, characters %d-%d\n"
+    Printf.printf "Name: %s, type: %s, position: %s"
       res.IdentifySymbolService.name
-      (get_result_type res)
-      line start end_
+      (ClientGetMethodName.get_result_type res)
+      (Pos.string_no_file res.IdentifySymbolService.pos);
+    Option.iter res.IdentifySymbolService.name_pos begin fun pos ->
+      Printf.printf ", defined: %s" (Pos.string_no_file pos)
+    end;
+    print_newline ()
   | None -> ()
 
 let go res output_json =
